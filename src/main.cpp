@@ -205,7 +205,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 		let xhttp = new XMLHttpRequest();
 		let value = document.getElementById('emiss_value').value;
 		if (!isNaN(parseFloat(value))) {
-			if (value < 1 && value > 0) {
+			if (value =< 1 && value > 0) {
 				xhttp.open("GET", "/emissivity?emiss_param=" + value, true);
 				xhttp.send();
 			} else {
