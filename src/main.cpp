@@ -26,6 +26,7 @@ uint16_t eeMLX90641[832];
 uint16_t MLX90641Frame[242];
 float MLX90641To[192];
 paramsMLX90641 MLX90641;
+float emissivity = 0.2;
 
 // You can use any (4 or) 5 pins
 #define sclk 18
@@ -104,20 +105,46 @@ String getMinTemp() {
     return String(MinTemp);
 }
 
+void setEmissivity(float newVal) {
+    emissivity = newVal;
+}
+
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML>
 <html>
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css"
           integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
     <style>
         html {
-            font-family: Arial,serif;
-            background-color: #333;
+            font-family: Arial, serif;
+            background-color: #888;
             display: inline-block;
             margin: 0 auto;
             text-align: center;
+        }
+
+        .data .in {
+            font-size: 1.5rem;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            align-content: center;
+        }
+
+        .data .in div {
+            align-content: center
+        }
+
+        .data .in button {
+            font-size: 1.5rem;
+        }
+
+        #emiss_value {
+            font-size: 1.5rem;
+            width: 50px;
         }
 
         p {
@@ -162,10 +189,32 @@ const char index_html[] PROGMEM = R"rawliteral(
         <span class="dht-labels">Temp Min: </span>
         <span id="tempmin">31.06</span>
         <sup class="units">&deg;C</sup>
+
+        <br>
     </p>
+    <div class="in">
+        <div>Emissivity</div>
+        <input type="text" id="emiss_value">
+        <button onclick="setEmiss()">OK</button>
+    </div>
 </div>
 </body>
 <script>
+
+	function setEmiss() {
+		let xhttp = new XMLHttpRequest();
+		let value = document.getElementById('emiss_value').value;
+		if (!isNaN(parseFloat(value))) {
+			if (value < 1 && value > 0) {
+				xhttp.open("GET", "/emissivity?emiss_param=" + value, true);
+				xhttp.send();
+			} else {
+				alert("Wpisana wartosc nie znajduje sie miedzy 0 a 1!")
+			}
+		} else {
+            alert("Wpisana wartosc nie jest liczba zmiennoprzecinkowa!")
+        }
+	}
 
 	setInterval(function () {
 		var xhttp = new XMLHttpRequest();
@@ -438,7 +487,16 @@ void setup() {
     server.on("/thermal", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(SPIFFS, "/thermal.bmp", "image/bmp", false);
     });
-
+    server.on("/emissivity", HTTP_GET, [] (AsyncWebServerRequest *request) {
+        if (!(request->hasParam("emiss_param", false))) {
+            request->send(400, "text/plain", "400: Bad Request");
+            return;
+        }
+        AsyncWebParameter* param1 = request->getParam("emiss_param", false);
+        String emiss_param = param1->value();
+        setEmissivity(emiss_param.toFloat());
+        request->send(200, "text/plain", "emissivity set to: " );
+    });
     server.begin();
     Serial.println("HTTP server started");
 }
@@ -462,7 +520,6 @@ void loop() {
         float Ta = MLX90641_GetTa(mlx90641Frame, &MLX90641);
 
         float tr = Ta - TA_SHIFT; //Reflected temperature based on the sensor ambient temperature
-        float emissivity = 0.95;
 
         MLX90641_CalculateTo(mlx90641Frame, &MLX90641, emissivity, tr, MLX90641To);
     }
